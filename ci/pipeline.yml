@@ -151,7 +151,7 @@ jobs:
 
 - name: create-dev-release
   plan:
-  - aggregate
+  - aggregate:
     - get: nexus-boshrelease
       passed:
       - set-pipeline
