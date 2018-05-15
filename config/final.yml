@@ -3,4 +3,4 @@ name: nexus-boshrelease
 blobstore:
   provider: gcs
   options:
-    bucket_name: boshrelease-blobs
+    bucket_name: buildtools-blobs
