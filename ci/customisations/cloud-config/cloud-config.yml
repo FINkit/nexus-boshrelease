@@ -57,3 +57,4 @@ vm_types:
 - name: minimal
 - name: small
 - name: small-highmem
+- name: default
