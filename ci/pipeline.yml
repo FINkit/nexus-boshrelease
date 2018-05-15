@@ -121,8 +121,6 @@ groups:
   - setup-infrastructure
   - create-dev-release
   - test-nexus
-  - test-jenkins
-  - test-sonarqube
   - prerelease-patch
   - prerelease-minor
   - prerelease-major
@@ -201,12 +199,25 @@ jobs:
 
 - name: test-nexus
   plan:
-  - aggregate: *get-test-resources
+  - aggregate:
+    - get: bbl-state
+      passed:
+      - setup-infrastructure
+    - get: cf-deployment-concourse-tasks
+    - get: nexus-boshrelease
+      passed:
+      - create-dev-release
+      - setup-infrastructure
+    - get: dev-release-tarball
+      passed:
+      - create-dev-release
+      trigger: true
+    - get: warden-stemcell
   - aggregate:
     - do:
       - task: create-nexus-bosh-config
         params:
-          BOSH_DEPLOYMENT: *deployment-name
+          BOSH_DEPLOYMENT: &deployment-name nexus
         file: nexus-boshrelease/ci/tasks/create-bosh-config.yml
       - put: bosh-deployment # Deploy Nexus instance
         params:
