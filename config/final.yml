@@ -1,0 +1,6 @@
+---
+name: nexus-boshrelease
+blobstore:
+  provider: gcs
+  options:
+    bucket_name: devtools-boshrelease-blobs
