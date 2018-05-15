@@ -61,7 +61,7 @@ resources:
       uri: git@github.com:finkit/nexus-boshrelease
       branch: master
       private_key: ((github-deploy-key.private))
-- name: dev-release-tarball
+- name: nexus-boshrelease-tarball
   type: google-cloud-storage
   source:
     bucket: ((dev-build-automate-release-tarballs.bucket))
@@ -151,15 +151,15 @@ jobs:
 
 - name: create-dev-release
   plan:
-  - aggregate:
+  - aggregate
     - get: nexus-boshrelease
       passed:
       - set-pipeline
       trigger: true
   - task: create-release
     file: nexus-boshrelease/ci/tasks/create-dev-release.yml
-  - put: dev-release-tarball
-    params: { file: dev-release-tarball/dev-release.tgz }
+  - put: nexus-boshrelease-tarball
+    params: { file: nexus-boshrelease-tarball/dev-release.tgz }
   <<: *slack-alert
 
 - name: setup-infrastructure
@@ -208,7 +208,7 @@ jobs:
       passed:
       - create-dev-release
       - setup-infrastructure
-    - get: dev-release-tarball
+    - get: nexus-boshrelease-tarball
       passed:
       - create-dev-release
       trigger: true
@@ -226,7 +226,7 @@ jobs:
           source_file: source/source.yml
           manifest: buildstack-deployment/buildstack.yml
           releases:
-          - dev-release-tarball/dev-release.tgz
+          - nexus-boshrelease-tarball/dev-release.tgz
           stemcells:
           - warden-stemcell/stemcell.tgz
           vars:
