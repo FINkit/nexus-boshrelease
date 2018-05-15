@@ -13,6 +13,6 @@ run:
   - -c
   - | 
     bosh create-release \
-      --tarball=nexus-boshrelease-tarball/nexus-boshrelease.tgz \
+      --tarball=nexus-boshrelease-tarball/dev-release.tgz \
       --dir=nexus-boshrelease \
       --timestamp-version
