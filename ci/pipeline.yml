@@ -226,7 +226,7 @@ jobs:
         file: nexus-boshrelease/ci/tasks/test-nexus.yml
         params:
           BOSH_DEPLOYMENT: *deployment-name
-        ensure:
+        on_success:
           put: bosh-deployment # Destroy Nexus instance
           params:
             source_file: source/source.yml
