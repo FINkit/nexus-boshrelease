@@ -53,6 +53,12 @@ vm_extensions:
   cloud_properties:
     ports:
     - host: 8845
+- name: internet-required
+  cloud_properties:
+    ephemeral_external_ip: true
+- name: internet-not-required
+  cloud_properties:
+    ephemeral_external_ip: false
 vm_types:
 - name: minimal
 - name: small
