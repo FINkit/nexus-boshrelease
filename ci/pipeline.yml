@@ -62,7 +62,7 @@ resources:
     bucket: ((dev-build-automate-release-tarballs.bucket))
     json_key: ((concourse_project_google_key))
     versioned_file: nexus-boshrelease/dev-release.tgz
-- name: final-release-tarball
+- name: final-nexus-boshrelease-tarball
   type: google-cloud-storage
   source:
     bucket: ((dev-build-automate-release-tarballs.bucket))
@@ -274,15 +274,15 @@ jobs:
         - test-nexus
     - task: create-release
       file: nexus-boshrelease/ci/tasks/create-final-release.yml
-    - put: final-release-tarball
-      params: { file: final-release-tarball/nexus-boshrelease-v*.tgz }
+    - put: final-nexus-boshrelease-tarball
+      params: { file: final-nexus-boshrelease-tarball/nexus-boshrelease-v*.tgz }
     - put: github-release
       params: &put-github-release-params
         name: version/version
         tag: version/version
         tag_prefix: v
         globs: 
-        - final-release-tarball/*.tgz
+        - final-nexus-boshrelease-tarball/*.tgz
   <<: *slack-alert
 
 - name: prerelease-major
@@ -337,5 +337,5 @@ jobs:
         tag: version/version
         tag_prefix: v
         globs: 
-        - final-release-tarball/*.tgz
+        - final-nexus-boshrelease-tarball/*.tgz
   <<: *slack-alert
