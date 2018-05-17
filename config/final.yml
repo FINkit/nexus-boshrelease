@@ -1,5 +1,5 @@
 ---
-name: nexus-boshrelease
+name: nexus
 blobstore:
   provider: gcs
   options:
