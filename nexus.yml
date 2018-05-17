@@ -5,7 +5,7 @@ instance_groups:
   instances: 1
   jobs:
   - name: nexus
-    release: nexus-boshrelease
+    release: nexus
     properties:
       nexus:
         admin:
@@ -18,7 +18,7 @@ instance_groups:
   vm_type: default
 
 releases:
-- name: nexus-boshrelease
+- name: nexus
   version: latest
 
 stemcells:
