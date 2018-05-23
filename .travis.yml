@@ -5,7 +5,7 @@ dist: trusty
 before_install:
 - curl -o /home/travis/bosh https://s3.amazonaws.com/bosh-cli-artifacts/bosh-cli-2.0.48-linux-amd64
 - chmod +x /home/travis/bosh
-- wget https://github.com/concourse/concourse/releases/download/3.13.0/fly_linux_amd64 -O /home/travis/fly
+- wget https://github.com/concourse/concourse/releases/download/v3.13.0/fly_linux_amd64 -O /home/travis/fly
 - chmod +x /home/travis/fly
 
 script: 
