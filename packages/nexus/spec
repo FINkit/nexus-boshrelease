@@ -1,0 +1,8 @@
+---
+name: nexus
+
+dependencies:
+    - oraclejdk
+
+files:
+    - nexus/nexus-3.3.1-01-unix.tar.gz

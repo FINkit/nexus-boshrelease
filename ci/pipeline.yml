@@ -1,0 +1,341 @@
+---
+resource_types:
+- name: bbl-state-resource
+  type: docker-image
+  source:
+    repository: cfinfrastructure/bbl-state-resource
+- name: bosh-deployment
+  type: docker-image
+  source:
+    repository: cloudfoundry/bosh-deployment-resource
+- name: concourse-pipeline
+  type: docker-image
+  source:
+    repository: concourse/concourse-pipeline-resource
+- name: google-cloud-storage
+  type: docker-image
+  source:
+    repository: frodenas/gcs-resource
+    tag: "v0.1.0"
+- name: slack-notification
+  type: docker-image
+  source:
+    repository: cfcommunity/slack-notification-resource
+
+resources:
+- name: bbl-state
+  type: git
+  source:
+    branch: master
+    uri: ((bbl-state.url))
+    username: ((git-credentials.username))
+    password: ((git-credentials.password))
+- name: bosh-bootloader
+  type: git
+  source:
+    branch: master
+    uri: https://github.com/cloudfoundry/bosh-bootloader.git
+    tag_filter: "v6.6.4"
+- name: bosh-deployment
+  type: bosh-deployment
+- name: cf-deployment-concourse-tasks
+  type: git
+  source:
+    branch: master
+    uri: https://github.com/cloudfoundry/cf-deployment-concourse-tasks.git
+    tag_filter: "v6.7"
+- name: concourse-tasks
+  type: git 
+  source:
+    branch: master
+    uri: https://github.com/garethjevans/concourse-tasks.git
+    tag_filter: "v1.0"
+- name: nexus-boshrelease
+  type: git
+  source:
+      uri: git@github.com:finkit/nexus-boshrelease
+      branch: master
+      private_key: ((github-deploy-key.private))
+- name: nexus-boshrelease-tarball
+  type: google-cloud-storage
+  source:
+    bucket: ((dev-build-automate-release-tarballs.bucket))
+    json_key: ((concourse_project_google_key))
+    versioned_file: nexus-boshrelease/dev-release.tgz
+- name: final-nexus-boshrelease-tarball
+  type: google-cloud-storage
+  source:
+    bucket: ((dev-build-automate-release-tarballs.bucket))
+    json_key: ((concourse_project_google_key))
+    regexp: nexus-boshrelease/nexus-boshrelease-v(.*).tgz
+- name: warden-stemcell
+  type: bosh-io-stemcell
+  source:
+    name: bosh-warden-boshlite-ubuntu-trusty-go_agent
+- name: github-prerelease
+  type: github-release
+  source:
+    <<: &github-release-source
+      owner: finkit
+      repository: nexus-boshrelease
+      access_token: ((github-access-token))
+    # "pre_release: true" is not effective on it's own, "release: false" must also be set
+    # https://github.com/concourse/github-release-resource/issues/40
+    pre_release: true
+    release: false
+- name: github-release
+  type: github-release
+  source:
+    <<: *github-release-source
+    # drafts: true
+- name: set-pipeline
+  type: concourse-pipeline
+  source:
+    target: ((concourse-auth.target))
+    teams:
+    - name: ((concourse-auth.team))
+      username: ((concourse-auth.username))
+      password: ((concourse-auth.password))
+- name: slack-alert
+  type: slack-notification
+  source:
+    url: ((slack.hook))
+- name: version
+  type: semver
+  source:
+    driver: gcs 
+    bucket: ((dev-build-automate-release-tarballs.bucket))
+    json_key: ((concourse_project_google_key))
+    initial_version: 0.0.0
+    key: nexus.version
+
+groups:
+- name: create
+  jobs:
+  - set-pipeline
+  - setup-infrastructure
+  - create-dev-release
+  - test-nexus
+  - prerelease-patch
+  - prerelease-minor
+  - prerelease-major
+  - release-final
+- name: destroy
+  jobs:
+  - destroy-bosh
+
+jobs:
+- name: set-pipeline
+  plan:
+  - get: nexus-boshrelease
+    trigger: true
+  - put: set-pipeline
+    params:
+      pipelines:
+      - name: nexus-boshrelease
+        team: ((concourse-auth.team))
+        config_file: nexus-boshrelease/ci/pipeline.yml
+  <<: &slack-alert
+    on_failure:
+      put: slack-alert
+      params:
+        channel: ((slack.channel))
+        username: ((slack.user))
+        text: "<((concourse-auth.target))/teams/((concourse-auth.team))/pipelines/${BUILD_PIPELINE_NAME}/jobs/${BUILD_JOB_NAME}|${BUILD_PIPELINE_NAME}/${BUILD_JOB_NAME}>: ${BUILD_ID} - [Failed]"
+        icon_emoji: ":fire:"
+
+- name: create-dev-release
+  plan:
+  - aggregate:
+    - get: nexus-boshrelease
+      passed:
+      - set-pipeline
+      trigger: true
+  - task: create-release
+    file: nexus-boshrelease/ci/tasks/create-dev-release.yml
+  - put: nexus-boshrelease-tarball
+    params: { file: nexus-boshrelease-tarball/dev-release.tgz }
+  <<: *slack-alert
+
+- name: setup-infrastructure
+  serial_groups:
+  - bbl
+  plan:
+  - aggregate:
+    - get: bbl-state
+    - get: bosh-bootloader
+    - get: cf-deployment-concourse-tasks
+    - get: concourse-tasks
+    - get: nexus-boshrelease
+      passed:
+      - set-pipeline
+      trigger: true
+  - task: bbl-up
+    file: cf-deployment-concourse-tasks/bbl-up/task.yml
+    input_mapping:
+      bbl-config: nexus-boshrelease
+      bbl-state: bbl-state
+    output_mapping:
+      updated-bbl-state: updated-bbl-state
+    params:
+      BBL_CONFIG_DIR: ci/customisations
+      BBL_ENV_NAME: nexus-boshrelease
+      BBL_GCP_REGION: ((gcp.region))
+      BBL_GCP_SERVICE_ACCOUNT_KEY: ((gcp.key))
+      BBL_IAAS: gcp
+      SKIP_LB_CREATION: true
+    ensure:
+      put: bbl-state
+      params:
+        repository: updated-bbl-state
+        rebase: true
+  <<: *slack-alert
+
+- name: test-nexus
+  plan:
+  - aggregate:
+    - get: bbl-state
+      passed:
+      - setup-infrastructure
+    - get: cf-deployment-concourse-tasks
+    - get: nexus-boshrelease
+      passed:
+      - create-dev-release
+      - setup-infrastructure
+    - get: nexus-boshrelease-tarball
+      passed:
+      - create-dev-release
+      trigger: true
+    - get: warden-stemcell
+  - aggregate:
+    - do:
+      - task: create-nexus-bosh-config
+        params:
+          BOSH_DEPLOYMENT: &deployment-name nexus
+        file: nexus-boshrelease/ci/tasks/create-bosh-config.yml
+      - put: bosh-deployment # Deploy Nexus instance
+        params:
+          source_file: source/source.yml
+          manifest: nexus-boshrelease/nexus.yml
+          releases:
+          - nexus-boshrelease-tarball/dev-release.tgz
+          stemcells:
+          - warden-stemcell/stemcell.tgz
+          vars:
+            deployment_name: *deployment-name
+      - task: test-nexus
+        file: nexus-boshrelease/ci/tasks/test-nexus.yml
+        params:
+          BOSH_DEPLOYMENT: *deployment-name
+        on_success:
+          put: bosh-deployment # Destroy Nexus instance
+          params:
+            source_file: source/source.yml
+            delete:
+              enabled: true
+              force: true
+            vars:
+              deployment_name: *deployment-name
+  <<: *slack-alert
+
+- name: destroy-bosh
+  serial_groups:
+  - bbl
+  plan:
+  - aggregate:
+    - get: bbl-state
+    - get: cf-deployment-concourse-tasks
+  - task: bbl-destroy
+    file: cf-deployment-concourse-tasks/bbl-destroy/task.yml
+    input_mapping:
+      bbl-state: bbl-state
+    output_mapping:
+      updated-bbl-state: updated-bbl-state
+    params:
+      BBL_GCP_SERVICE_ACCOUNT_KEY: ((gcp.key))
+    ensure:
+      put: bbl-state
+      params:
+        repository: updated-bbl-state
+        rebase: true
+  <<: *slack-alert
+
+- name: release-final
+  serial_groups:
+  - github-release
+  plan:
+  - put: version
+    params:
+      bump: final
+  - do: &do-release
+    - aggregate:
+      - get: nexus-boshrelease
+        passed:
+        - test-nexus
+    - task: create-release
+      file: nexus-boshrelease/ci/tasks/create-final-release.yml
+    - put: final-nexus-boshrelease-tarball
+      params: { file: final-nexus-boshrelease-tarball/nexus-boshrelease-v*.tgz }
+    - put: github-release
+      params: &put-github-release-params
+        name: version/version
+        tag: version/version
+        tag_prefix: v
+        globs: 
+        - final-nexus-boshrelease-tarball/*.tgz
+  <<: *slack-alert
+
+- name: prerelease-major
+  serial_groups:
+  - github-release
+  plan:
+  - put: version
+    params:
+      bump: major
+      pre: rc
+  - do: &do-prerelease
+    - aggregate:
+      - get: nexus-boshrelease
+        passed:
+        - test-nexus
+    - task: create-release
+      file: nexus-boshrelease/ci/tasks/create-final-release.yml
+    - put: github-prerelease
+      params: *put-github-release-params
+  <<: *slack-alert
+
+- name: prerelease-minor
+  serial_groups:
+  - github-release
+  plan:
+  - put: version
+    params:
+      bump: minor
+      pre: rc
+  - do: *do-prerelease
+  <<: *slack-alert
+
+- name: prerelease-patch
+  serial_groups:
+  - github-release
+  plan:
+  - put: version
+    params:
+      bump: patch
+      pre: rc
+  - do:
+    - aggregate:
+      - get: nexus-boshrelease
+        passed:
+        - test-nexus
+        trigger: true
+    - task: create-release
+      file: nexus-boshrelease/ci/tasks/create-final-release.yml
+    - put: github-prerelease
+      params: &put-github-release-params
+        name: version/version
+        tag: version/version
+        tag_prefix: v
+        globs: 
+        - final-nexus-boshrelease-tarball/*.tgz
+  <<: *slack-alert

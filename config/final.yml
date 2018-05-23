@@ -1,0 +1,6 @@
+---
+name: nexus
+blobstore:
+  provider: gcs
+  options:
+    bucket_name: buildtools-blobs
