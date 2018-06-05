@@ -1,0 +1,5 @@
+{
+  "name": "disable_anonymous_access",
+  "type": "groovy",
+  "content": "security.setAnonymousAccess(Boolean.valueOf('false'))"
+}

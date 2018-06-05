@@ -15,6 +15,7 @@ templates:
   config/scripts/repositories.json.erb: config/scripts/repositories.json
   config/scripts/update_admin_password.json.erb: config/scripts/update_admin_password.json
   config/scripts/add_deployment_user.json.erb: config/scripts/add_deployment_user.json
+  config/scripts/disable_anonymous_access.json: config/scripts/disable_anonymous_access.json
   config/scripts/add_user_roles.json.erb: config/scripts/add_user_roles.json
   config/scripts/create_blobstores.json.erb: config/scripts/create_blobstores.json
   helpers/ctl_setup.sh: helpers/ctl_setup.sh
