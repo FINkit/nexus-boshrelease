@@ -1,0 +1,5 @@
+{
+  "name": "add_developer_user",
+  "type": "groovy",
+  "content": "privileges = [\r\n    \"nx-developer\"]\r\nuser = security.addUser('<%= p("nexus.developer.username") %>', '<%= p("nexus.developer.firstname") %>', '<%= p("nexus.developer.lastname") %>', '<%= p("nexus.developer.email") %>', true, '<%= p("nexus.developer.password") %>', privileges)"
+}
