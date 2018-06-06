@@ -12,6 +12,8 @@ instance_groups:
           password: ((nexus_admin_password))
         deployer:
           password: ((nexus_deployer_password))
+        developer:
+          password: ((nexus_developer_password))
   networks:
   - name: default
   stemcell: default
@@ -36,4 +38,6 @@ variables:
 - name: nexus_admin_password
   type: password
 - name: nexus_deployer_password
+  type: password
+- name: nexus_developer_password
   type: password
