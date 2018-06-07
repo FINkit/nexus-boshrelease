@@ -2,10 +2,6 @@ groovy/apache-groovy-binary-2.4.13.zip:
   size: 36587726
   object_id: 533334f0-f6e8-4959-6ce5-90687aa938c0
   sha: d14bba275221389cbc4726a8c8c14f5a0f9e891d
-nexus-3.7.1-02-unix.tar.gz:
-  size: 112671471
-  object_id: 6dafe6ff-b1e5-4331-516e-7d908a6a9c2c
-  sha: e15f7b170a13f3f8eef85f4043066d0fd3efe3b7
 nexus/nexus-3.3.1-01-unix.tar.gz:
   size: 107336558
   object_id: 1a3319fc-13e1-425b-5999-ac7d3ae0c60c
