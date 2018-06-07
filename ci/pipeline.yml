@@ -43,6 +43,7 @@ resources:
   source:
     branch: master
     uri: https://github.com/cloudfoundry/cf-deployment-concourse-tasks.git
+    tag_filter: ((resource_version_cf-deployment-concourse-tasks.ref))
 - name: concourse-tasks
   type: git 
   source:
