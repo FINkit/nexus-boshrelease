@@ -88,6 +88,13 @@ resources:
   source:
     <<: *github-release-source
     # drafts: true
+- name: read-snapshot-versions
+  type: git
+  source:
+    private_key: ((buildstack-pipeline-versions.key))
+    uri: ((buildstack-pipeline-versions.uri))
+    paths:
+    - initial-versions.yml
 - name: set-pipeline
   type: concourse-pipeline
   source:
@@ -127,6 +134,7 @@ groups:
 jobs:
 - name: set-pipeline
   plan:
+  - get: read-snapshot-versions
   - get: nexus-boshrelease
     trigger: true
   - put: set-pipeline
@@ -135,6 +143,8 @@ jobs:
       - name: nexus-boshrelease
         team: ((concourse-auth.team))
         config_file: nexus-boshrelease/ci/pipeline.yml
+        vars_files:
+        - read-snapshot-versions/initial-versions.yml
   <<: &slack-alert
     on_failure:
       put: slack-alert
