@@ -168,6 +168,7 @@ jobs:
   - aggregate:
     - get: bbl-state
     - get: cf-deployment-concourse-tasks
+      trigger: true
     - get: concourse-tasks
     - get: nexus-boshrelease
       passed:
