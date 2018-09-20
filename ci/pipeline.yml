@@ -164,6 +164,9 @@ jobs:
       passed:
       - create-dev-release
       trigger: true
+    - get: nexus-boshrelease-tarball
+      passed: create-dev-release
+      trigger: true
     - get: warden-stemcell
   - task: bbl-up
     file: cf-deployment-concourse-tasks/bbl-up/task.yml
