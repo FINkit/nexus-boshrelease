@@ -12,6 +12,7 @@ resource_types:
   type: docker-image
   source:
     repository: concourse/concourse-pipeline-resource
+    tag: 3
 - name: google-cloud-storage
   type: docker-image
   source:
@@ -30,6 +31,13 @@ resources:
     uri: ((bbl-state.url))
     username: ((git-credentials.username))
     password: ((git-credentials.password))
+- name: read-snapshot-versions
+  type: git
+  source:
+    private_key: ((buildstack-pipeline-versions.key))
+    uri: ((buildstack-pipeline-versions.uri))
+    paths:
+    - initial-versions.yml
 - name: bosh-deployment
   type: bosh-deployment
 - name: cf-deployment-concourse-tasks
@@ -82,13 +90,6 @@ resources:
   source:
     <<: *github-release-source
     # drafts: true
-- name: read-snapshot-versions
-  type: git
-  source:
-    private_key: ((buildstack-pipeline-versions.key))
-    uri: ((buildstack-pipeline-versions.uri))
-    paths:
-    - initial-versions.yml
 - name: set-pipeline
   type: concourse-pipeline
   source:
@@ -110,21 +111,6 @@ resources:
     initial_version: 0.0.0
     key: nexus.version
 
-groups:
-- name: create
-  jobs:
-  - set-pipeline
-  - setup-infrastructure
-  - create-dev-release
-  - test-nexus
-  - prerelease-patch
-  - prerelease-minor
-  - prerelease-major
-  - release-final
-- name: destroy
-  jobs:
-  - destroy-bosh
-
 jobs:
 - name: set-pipeline
   plan:
@@ -139,6 +125,8 @@ jobs:
         config_file: nexus-boshrelease/ci/pipeline.yml
         vars_files:
         - read-snapshot-versions/initial-versions.yml
+    get_params:
+      skip_download: true
   <<: &slack-alert
     on_failure:
       put: slack-alert
@@ -159,20 +147,24 @@ jobs:
     file: nexus-boshrelease/ci/tasks/create-dev-release.yml
   - put: nexus-boshrelease-tarball
     params: { file: nexus-boshrelease-tarball/dev-release.tgz }
+    get_params:
+      skip_download: true
   <<: *slack-alert
 
-- name: setup-infrastructure
-  serial_groups:
-  - bbl
+- name: test-nexus
+  build_logs_to_retain: 20
+  serial: true
   plan:
   - aggregate:
     - get: bbl-state
-    - get: cf-deployment-concourse-tasks
     - get: concourse-tasks
+    - get: cf-deployment-concourse-tasks
+      trigger: true
     - get: nexus-boshrelease
       passed:
-      - set-pipeline
+      - create-dev-release
       trigger: true
+    - get: warden-stemcell
   - task: bbl-up
     file: cf-deployment-concourse-tasks/bbl-up/task.yml
     input_mapping:
@@ -192,62 +184,33 @@ jobs:
       params:
         repository: updated-bbl-state
         rebase: true
-  <<: *slack-alert
-
-- name: test-nexus
-  plan:
-  - aggregate:
-    - get: bbl-state
-      passed:
-      - setup-infrastructure
-    - get: cf-deployment-concourse-tasks
-    - get: nexus-boshrelease
-      passed:
-      - create-dev-release
-      - setup-infrastructure
-    - get: nexus-boshrelease-tarball
-      passed:
-      - create-dev-release
-      trigger: true
-    - get: warden-stemcell
-  - aggregate:
-    - do:
-      - task: create-nexus-bosh-config
-        params:
-          BOSH_DEPLOYMENT: &deployment-name nexus
-        file: nexus-boshrelease/ci/tasks/create-bosh-config.yml
-      - put: bosh-deployment # Deploy Nexus instance
-        params:
-          source_file: source/source.yml
-          manifest: nexus-boshrelease/nexus.yml
-          releases:
-          - nexus-boshrelease-tarball/dev-release.tgz
-          stemcells:
-          - warden-stemcell/stemcell.tgz
-          vars:
-            deployment_name: *deployment-name
-      - task: test-nexus
-        file: nexus-boshrelease/ci/tasks/test-nexus.yml
-        params:
-          BOSH_DEPLOYMENT: *deployment-name
-        on_success:
-          put: bosh-deployment # Destroy Nexus instance
-          params:
-            source_file: source/source.yml
-            delete:
-              enabled: true
-              force: true
-            vars:
-              deployment_name: *deployment-name
-  <<: *slack-alert
-
-- name: destroy-bosh
-  serial_groups:
-  - bbl
-  plan:
-  - aggregate:
-    - get: bbl-state
-    - get: cf-deployment-concourse-tasks
+  - task: create-nexus-bosh-config
+    file: nexus-boshrelease/ci/tasks/create-bosh-config.yml
+    params:
+      BOSH_DEPLOYMENT: &deployment-name nexus
+  - put: bosh-deployment # Deploy Nexus instance
+    params:
+      source_file: source/source.yml
+      manifest: nexus-boshrelease/nexus.yml
+      releases:
+      - nexus-boshrelease-tarball/dev-release.tgz
+      stemcells:
+      - warden-stemcell/stemcell.tgz
+      vars:
+        deployment_name: *deployment-name
+  - task: test-nexus
+    file: nexus-boshrelease/ci/tasks/test-nexus.yml
+    params:
+      BOSH_DEPLOYMENT: *deployment-name
+    on_success:
+      put: bosh-deployment # Destroy Nexus instance
+      params:
+        source_file: source/source.yml
+        delete:
+          enabled: true
+          force: true
+        vars:
+          deployment_name: *deployment-name
   - task: bbl-destroy
     file: cf-deployment-concourse-tasks/bbl-destroy/task.yml
     input_mapping:
@@ -286,6 +249,8 @@ jobs:
         tag_prefix: v
         globs: 
         - final-nexus-boshrelease-tarball/*.tgz
+      get_params:
+        skip_download: true
   <<: *slack-alert
 
 - name: prerelease-major
@@ -305,6 +270,8 @@ jobs:
       file: nexus-boshrelease/ci/tasks/create-final-release.yml
     - put: github-prerelease
       params: *put-github-release-params
+      get_params:
+        skip_download: true
   <<: *slack-alert
 
 - name: prerelease-minor
@@ -341,4 +308,6 @@ jobs:
         tag_prefix: v
         globs: 
         - final-nexus-boshrelease-tarball/*.tgz
+      get_params:
+        skip_download: true
   <<: *slack-alert
