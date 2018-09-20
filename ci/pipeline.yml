@@ -164,8 +164,10 @@ jobs:
       passed:
       - create-dev-release
       trigger: true
+  - aggregate:
     - get: nexus-boshrelease-tarball
-      passed: create-dev-release
+      passed:
+      - create-dev-release
       trigger: true
     - get: warden-stemcell
   - task: bbl-up
